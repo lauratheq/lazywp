@@ -251,7 +251,7 @@ class LAZYWP:
 
                 # enable table cursor if needed by the module
                 if self.key == curses.KEY_DOWN:
-                    if self.cursor_position < self.content_entries:
+                    if self.cursor_position < self.content_entries-1:
                         self.cursor_position += 1
                 elif self.key == curses.KEY_UP:
                     if self.cursor_position > 0:
