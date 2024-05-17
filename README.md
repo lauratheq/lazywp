@@ -2,6 +2,8 @@
 
 lazywp is a terminal user interface for wpcli commands. It is heavily inspired by awesome projects like [lazygit](https://github.com/jesseduffield/lazygit) and [lazydocker](https://github.com/jesseduffield/lazydocker).
 
+![lazywp with the plugin view](/assets/lazywp.png?raw=true "lazywp with the plugin view")
+
 ## Elevator Pitch
 
 wpcli is a powerful tool to manage your WordPress installation on the command line. It comes with a lot of commands and services which helps with the daily work. But memorising all the commands and its different operators is hard. The goal of lazywp is to have a very simple interface where every needed information and tool is in one place.
