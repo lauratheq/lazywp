@@ -85,6 +85,7 @@ Determine for each command what exactly to implement
   * [x] activate
   * [x] deactivate
   * [ ] toggle auto update
+  * [ ] verify checksum against wp.org
   * [ ] install
   * [x] remove
 * [ ] post
