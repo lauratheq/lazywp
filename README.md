@@ -38,13 +38,13 @@ Please note that this project is adapting the [Contributor Code of Conduct](http
 * [ ] Version check
 * [x] Logging mechanism
 * [x] Basic Layout
- * [x] Panels
- * [x] Scrolling
- * [x] Dynamic status bar
+  * [x] Panels
+  * [x] Scrolling
+  * [x] Dynamic status bar
 * [x] Dynamic loading of commands
 * [ ] Methods to make usage of curses easier within the project
- * [x] Tables
- * [ ] Modals 
+  * [x] Tables
+  * [ ] Modals 
 * [ ] Code comments (i know ...)
 * [ ] functionality documentation in README.md
 * [ ] Automatic installation process
@@ -80,13 +80,13 @@ Determine for each command what exactly to implement
 * [ ] option
 * [ ] package
 * [ ] plugin
- * [x] update
- * [x] update all
- * [x] activate
- * [x] deactivate
- * [ ] toggle auto update
- * [ ] install
- * [x] remove
+  * [x] update
+  * [x] update all
+  * [x] activate
+  * [x] deactivate
+  * [ ] toggle auto update
+  * [ ] install
+  * [x] remove
 * [ ] post
 * [ ] post-type
 * [ ] profile
