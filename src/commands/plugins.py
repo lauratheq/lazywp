@@ -50,11 +50,12 @@ def run(lazywp):
             reload = True
 
         # remove
-        # TODO ask if the user is actually sure
-        # TODO build a floating box
         if lazywp.key == 114:
-            lazywp.wp(f"plugin delete {plugin['name']}", False)
-            reload = True
+            result = lazywp.askbox([f"Are you sure you want to delete {plugin['name']}?"])
+            if result == True:
+                lazywp.msgbox([f"Deleting plugin {plugin['name']}"])
+                lazywp.wp(f"plugin delete {plugin['name']}", False)
+                reload = True
 
         # update
         if lazywp.key == 117 and plugin['update'] == 'available':
