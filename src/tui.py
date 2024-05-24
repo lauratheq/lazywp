@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import curses
+from math import floor
 
 def draw_table_header(headers, pad, pad_width):
 
@@ -78,4 +79,102 @@ def draw_table_entry(entries, entry_position, color, pad, pad_width, l):
         entry_left_pos += entry_length
 
         walker += 1
+
+def msgbox(lazywp, messages=[]):
+
+    # remove the box if it exists
+    if isinstance(lazywp.box, curses.window):
+        lazywp.box.clearok(True)
+        lazywp.box.clear()
+        lazywp.box.refresh()
+
+    # calculate needed width and height
+    base_height = 2
+    height = len(messages) + base_height
+    max_width = 0
+    for message in messages:
+        if len(message) > max_width:
+            max_width = len(message)
+    width = max_width + 2
+
+    # center box
+    begin_x = floor(lazywp.screen_cols / 2) - floor(width / 2)
+    begin_y = floor(lazywp.screen_rows / 2) - floor(height / 2) - 2
+
+    # draw the pad
+    lazywp.box = curses.newwin(height, width, begin_y, begin_x)
+    lazywp.box.clear()
+    lazywp.box.attron(lazywp.colors['messagebox'])
+    lazywp.box.box()
+
+    # add messages
+    position_y = 1
+    for message in messages:
+        lazywp.box.addstr(position_y,1,message)
+        position_y += 1
+
+    lazywp.box.refresh()
+
+def askbox(lazywp, messages=[]):
+    # remove the box if it exists
+    if isinstance(lazywp.box, curses.window):
+        lazywp.box.clearok(True)
+        lazywp.box.clear()
+        lazywp.box.refresh()
+
+    # calculate needed width and height
+    base_height = 2
+    height = len(messages) + base_height
+    max_width = 0
+    for message in messages:
+        if len(message) > max_width:
+            max_width = len(message)
+    width = max_width + 2
+
+    # center box
+    begin_x = floor(lazywp.screen_cols / 2) - floor(width / 2)
+    begin_y = floor(lazywp.screen_rows / 2) - floor(height / 2) - 2
+
+    # draw the pad
+    lazywp.box = curses.newwin(height, width, begin_y, begin_x)
+    lazywp.box.clear()
+    lazywp.box.attron(lazywp.colors['messagebox'])
+    lazywp.box.box()
+
+    # add messages
+    position_y = 1
+    for message in messages:
+        lazywp.box.addstr(position_y,1,message)
+        position_y += 1
+
+    key = 0
+    enter = False
+    focus = 1
+    while enter != True:
+        # display yes no
+        if focus == 1:
+            lazywp.box.addstr(position_y, 2, '[ Yes ]', lazywp.colors['qboxhover'])
+        else:
+            lazywp.box.addstr(position_y, 2, '[ Yes ]', lazywp.colors['messagebox'])
+
+        if focus == 2:
+            lazywp.box.addstr(position_y, 10, '[ No ]', lazywp.colors['qboxhover'])
+        else:
+            lazywp.box.addstr(position_y, 10, '[ No ]', lazywp.colors['messagebox'])
+
+        lazywp.box.refresh()
+        key = lazywp.window.getch() 
+
+        # detect input for qbox
+        if key == curses.KEY_LEFT:
+            focus = 1
+        elif key == curses.KEY_RIGHT:
+            focus = 2
+        elif key == 10:
+            enter = True
+
+    if focus == 2:
+        return False
+    return True
+
 

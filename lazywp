@@ -305,102 +305,10 @@ class LAZYWP:
         self.log.debug(f' - output: {self.wp_output}')
 
     def msgbox(self, messages=[]):
-
-        # remove the box if it exists
-        if isinstance(self.box, curses.window):
-            self.box.clearok(True)
-            self.box.clear()
-            self.box.refresh()
-
-        # calculate needed width and height
-        base_height = 2
-        height = len(messages) + base_height
-        max_width = 0
-        for message in messages:
-            if len(message) > max_width:
-                max_width = len(message)
-        width = max_width + 2
-
-        # center box
-        begin_x = floor(self.screen_cols / 2) - floor(width / 2)
-        begin_y = floor(self.screen_rows / 2) - floor(height / 2) - 2
-
-        # draw the pad
-        self.box = curses.newwin(height, width, begin_y, begin_x)
-        self.box.clear()
-        self.box.attron(self.colors['messagebox'])
-        self.box.box()
-
-        # add messages
-        position_y = 1
-        for message in messages:
-            self.box.addstr(position_y,1,message)
-            position_y += 1
-
-        self.box.refresh()
+        self.tui.msgbox(self, messages)
 
     def askbox(self, messages=[]):
-
-        # remove the box if it exists
-        if isinstance(self.box, curses.window):
-            self.box.clearok(True)
-            self.box.clear()
-            self.box.refresh()
-
-        # calculate needed width and height
-        base_height = 2
-        height = len(messages) + base_height
-        max_width = 0
-        for message in messages:
-            if len(message) > max_width:
-                max_width = len(message)
-        width = max_width + 2
-
-        # center box
-        begin_x = floor(self.screen_cols / 2) - floor(width / 2)
-        begin_y = floor(self.screen_rows / 2) - floor(height / 2) - 2
-
-        # draw the pad
-        self.box = curses.newwin(height, width, begin_y, begin_x)
-        self.box.clear()
-        self.box.attron(self.colors['messagebox'])
-        self.box.box()
-
-        # add messages
-        position_y = 1
-        for message in messages:
-            self.box.addstr(position_y,1,message)
-            position_y += 1
-
-        key = 0
-        enter = False
-        focus = 1
-        while enter != True:
-            # display yes no
-            if focus == 1:
-                self.box.addstr(position_y, 2, '[ Yes ]', self.colors['qboxhover'])
-            else:
-                self.box.addstr(position_y, 2, '[ Yes ]', self.colors['messagebox'])
-
-            if focus == 2:
-                self.box.addstr(position_y, 10, '[ No ]', self.colors['qboxhover'])
-            else:
-                self.box.addstr(position_y, 10, '[ No ]', self.colors['messagebox'])
-
-            self.box.refresh()
-            key = self.window.getch() 
-
-            # detect input for qbox
-            if key == curses.KEY_LEFT:
-                focus = 1
-            elif key == curses.KEY_RIGHT:
-                focus = 2
-            elif key == 10:
-                enter = True
-
-        if focus == 2:
-            return False
-        return True
+        return self.tui.askbox(self, messages)
 
     def help():
         print('usage: lazywp [--help] [--log_level <level>] [--verbose]')
