@@ -26,19 +26,6 @@ def setup():
 
 def run(lazywp):
     
-    # always clear the content first
-    lazywp.content_pad_inside.clear()
-
-    # build the table
-    lazywp.tui.draw_table_header({
-        'Name': 0,
-        'Status': 8,
-        'Version': 10,
-        'Update Available': 17,
-        'AU': 3
-    }, lazywp.content_pad_inside, lazywp.content_pad_width)
-    used_lines = 2
-
     # we always display a list of plugins so we first query them
     # by calling wp cli
     # get the plugins
@@ -52,11 +39,13 @@ def run(lazywp):
 
         # activate
         if lazywp.key == 97 and plugin['status'] == 'inactive':
+            lazywp.msgbox([f"Activating plugin {plugin['name']}"])
             lazywp.wp(f"plugin activate {plugin['name']}", False)
             reload = True
 
         # deactivate
         if lazywp.key == 100 and plugin['status'] == 'active':
+            lazywp.msgbox([f"Deactivating plugin {plugin['name']}"])
             lazywp.wp(f"plugin deactivate {plugin['name']}", False)
             reload = True
 
@@ -69,17 +58,33 @@ def run(lazywp):
 
         # update
         if lazywp.key == 117 and plugin['update'] == 'available':
+            lazywp.msgbox([f"Updating plugin {plugin['name']}"])
             lazywp.wp(f"plugin update {plugin['name']}", False)
             reload = True
 
         # update all
         if lazywp.key == 85:
+            lazywp.msgbox(['Updating all plugins'])
             lazywp.wp(f"plugin update --all", False)
             reload = True
 
         # reload the plugin list because the items changed
         if reload == True:
-            lazywp.wp("plugin list --format=json")
+            lazywp.msgbox(['Loading plugin list'])
+            lazywp.wp("plugin list --format=json", False)
+
+    # always clear the content first
+    lazywp.content_pad_inside.clear()
+
+    # build the table
+    lazywp.tui.draw_table_header({
+        'Name': 0,
+        'Status': 8,
+        'Version': 10,
+        'Update Available': 17,
+        'AU': 3
+    }, lazywp.content_pad_inside, lazywp.content_pad_width)
+    used_lines = 2
 
     # format
     plugins = lazywp.wp_output

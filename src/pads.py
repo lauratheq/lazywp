@@ -5,7 +5,7 @@ import curses
 def draw_menu_pad(context, pad_height, colors, window):
         
     menu_pad = curses.newpad(pad_height,25)
-    window.refresh()
+    window.noutrefresh()
     menu_pad.attrset(colors['pad_border_inactive'])
     if context == 1:
         menu_pad.attrset(colors['pad_border_active'])
@@ -18,7 +18,6 @@ def draw_menu_pad(context, pad_height, colors, window):
 def draw_menu_entries(menu_entries, menu_hover, pad_height, colors, window):
 
     menu_entries_pad = curses.newpad(100, 22)
-    window.refresh()
     menu_entry_counter = 0
     for menu_entry in menu_entries:
         menu_entry_label = menu_entries[menu_entry]
@@ -36,7 +35,7 @@ def draw_content_pad(height, width, context, menu_active, colors, window):
 
     # create content pad
     content_pad = curses.newpad(height, width)
-    window.refresh()
+    window.noutrefresh()
     content_pad.attrset(colors['pad_border_inactive'])
     if context == 2:
         content_pad.attrset(colors['pad_border_active'])
