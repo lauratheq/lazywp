@@ -2,11 +2,10 @@
 
 # TODO comments
 import logging
-import src.config as config
 
 class Logging:
     logger = None
-    log_level = config.LOG_LEVEL
+    log_level = 0
     log_levels = {
         "NOTSET": 0,
         "DEBUG": 10,
@@ -16,9 +15,9 @@ class Logging:
         "CRITICAL": 50
     }
 
-    def __init__(self, *args):
-        if 'log_level' in args:
-            self.log_level = args.log_level
+    def __init__(self, **kwargs):
+        if 'log_level' in kwargs:
+            self.log_level = kwargs['log_level']
     
          # initialize logger
         self.init_logger()
@@ -36,8 +35,8 @@ class Logging:
 
         self.logger = logging.getLogger('lazywp')
         self.logger.setLevel(self.log_levels[self.log_level])
-        format = '%(asctime)s - %(levelname)s - %(filename)s - %(message)s'
-        formatter = logging.Formatter(format)
+        format = '[%(asctime)s] %(filename)s - %(message)s'
+        formatter = logging.Formatter(format, "%Y-%m-%d %H:%M:%S")
         
         # file logging
         fh = logging.FileHandler('/var/log/lazywp.log')

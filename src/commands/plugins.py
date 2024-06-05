@@ -1,19 +1,17 @@
 #!/usr/bin/python3
 
-import curses, subprocess, json
-
-def setup():
+def config():
     return {
-        'menu_entry_label': 'Plugins',
-        'keys': [
-            ['a', 'Activate plugin'],
-            ['d', 'Deactivate plugin'],
-            ['i', 'Install new plugin'],
-            ['r', 'Deinstalls and removes a plugin'],
-            ['u', 'Update plugin'],
-            ['U', 'Update all plugins'],
-            ['t', 'Toggle Autoupdate'],
-            ['v', 'Verify plugin agains wp.org']
+        'label': 'Plugins',
+        'actions': [
+            ['a', 'activate_plugin', 'Activate plugin'],
+            ['d', 'deactivate_plugin', 'Deactivate plugin'],
+            ['i', 'install_plugin', 'Install new plugin'],
+            ['r', 'deinstall_plugin', 'Deinstalls and removes a plugin'],
+            ['u', 'update_plugin', 'Update plugin'],
+            ['U', 'update_all_plugins', 'Update all plugins'],
+            ['t', 'toggle_autoupdate', 'Toggle Autoupdate'],
+            ['v', 'verify_plugin', 'Verify plugin agains wp.org']
         ],
         'statusbar': [
             'a: activate',
@@ -23,6 +21,9 @@ def setup():
             'u: update'
         ]
     }
+
+def data(lazywp):
+    pass
 
 def run(lazywp):
     

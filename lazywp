@@ -1,357 +1,286 @@
 #!/usr/bin/python3
 
-# import lazywp stuff
+# import own libs
 import src.config as config
 from src.logging import Logging
-import src.pads as pads
-import src.dashboard as dashboard
-import src.tui as tui
 
-# importing standard python libraries
-import sys, os, subprocess, getopt, pkgutil, importlib, curses
-from math import floor
+# import python3 standard libraries
+import sys, os, subprocess, pkgutil, importlib, curses
 from shutil import which
 
 class LAZYWP:
-    version = '0.1.1'
-    lazywp_path = ''
+    '''
 
+    Attributes:
+       window (obj): the curses wrapper window object
+       lazywp_path (str): the path of the lazywp script
+       log_level (str): the log level, loaded from the config
+       log (obj): the logging system
+       commands (dict): the registered commands with their information
+       active_command (str): the currently active command
+       colors (dict): the registered colors
+       key (int): the currently pressed key
+       keys (dict): the keymap
+       default_keys (dict): default keymaps
+       context (int): the current context (1=menu, 2=content)
+
+    Methods:
+        register_default_commands(): registers the default commands
+        init_default_key_bindings(): inits the default keys of lazywp
+        register_commands(): loads the information from the commands
+        set_curses_defaults(): sets the default curses settings
+        init_curses_colors(): inits the color scheme
+    '''
     window = None
-    tui = None
-    context = 1
-    msgline = ""
-    box = None
-
-    verbose = False
+    version = '0.1.1'
+    lazywp_path = None
     log = None
-    log_level = 'DEBUG'
-
-    screen_cols = None
-    screen_rows = None
-    pad_height = 0
-
+    log_level = 'NOTSET'
+    commands = {}
+    active_command = 'plugins'
     colors = {}
-
     key = 0
-
-    menu_pad = None
-    menu_entries_pad = None
-    menu_hover = 0
-    menu_entries = {}
-    menu_active = 'Dashboard'
-    menu_active_command = 'dashboard'
-
-    content_pad = None
-    content_pad_width = 0
-    content_pad_inside = None
-    content_pad_inside_lines = 0
-    content_pad_inside_pos = 0
-    cursor_position = 0
-    content_pad_inside_height = 0
-    content_entries = 0
-
-    wp_call = None
-    wp_returncode = None
-    wp_output = None
-
-    help_entries = {}
-    statusbar_entries = []
+    keys = {}
+    default_keys = {}
+    context = 1
 
     def __init__(self, window):
-        # set the window
+        '''
+
+        Parameters:
+            window (obj): the curses wrapper window object
+
+        Returns:
+            void
+        '''
+
+        # set the window object
         self.window = window
-        self.tui = tui
- 
+
         # set local path
         self.lazywp_path = os.path.dirname(os.path.realpath(__file__))
-        
-        # init log system
-        self.logging = Logging()
-        self.log = self.logging.logger
-        self.log.debug('Starting LAZYWP system')
-        
-        self.log.debug('Setting up standard configuration')
+
+        # init the log system
         self.log_level = config.LOG_LEVEL
+        logger = Logging(log_level=self.log_level)
+        self.log = logger.logger
+        self.log.debug('Starting LAZYWP system')
 
-        # parse the operators and set the arguments
-        self.log.debug('Parsing arguments')
-        opts_short = "l:vh"
-        opts_long  = [
-            "log_level= ",
-            "verbose",
-            "help"
-        ]
-        opts, args = getopt.getopt(sys.argv[1:], opts_short, opts_long)
-        for operator, argument in opts:
-            if operator in ("-l", "--log_level"):
-                log_level_arg = argument.upper()
-                if log_level_arg not in self.logging.log_levels:
-                    print(f'You called lazywp with an unknown log_level: {log_level_arg}. Falling back to log_level INFO')
-                    print(f'Available log_levels: {list(self.logging.log_levels.keys())}')
-                self.log_level = log_level_arg
-            elif operator in ("-v", "--verbose"):
-                self.log_level = 'DEBUG'
-                self.verbose = True
-            elif operator in ("-h", "--help"):
-                self.help()
-                self.exit()
-            else:
-                pass
+        # register the default commands
+        self.register_default_commands()
 
-        self.log.debug(f'    log_level: {self.log_level}')
-        self.log.debug(f'    verbose: {self.verbose}')
-
-        # adding dashboard to the menu
-        self.menu_entries["dashboard"] = "Dashboard"
+        # init default key bindings
+        self.init_default_key_bindings()
 
         # register the commands
         self.register_commands()
-   
+
+        # set curses defaults
+        self.set_curses_defaults()
+
+        # set curses colors
+        self.init_curses_colors()
+
+    def register_default_commands(self):
+        '''
+        Registers the default commands
+
+        Returns:
+            void
+        '''
+        self.commands['dashboard'] = {
+            'label': 'Dashboard',
+            'actions': [],
+            'statusbar': []
+        }
+
+    def init_default_key_bindings(self):
+        '''
+        Initializes the default keys and sets up the dict
+
+        Returns:
+            void
+        '''
+        self.default_keys[ord('q')] = 'quit'
+        self.default_keys[ord('?')] = 'display_help'
+
     def register_commands(self):
-        self.log.debug("Loading command information")
+        '''
+        Loads the configuration information from the commands
+        and saves them in the command stack
+
+        Returns:
+            void
+        '''
+        self.log.debug("Loading commands")
         commands_path = self.lazywp_path + '/src/commands/'
         commands = [name for _, name, _ in pkgutil.iter_modules([commands_path])]
         for command in commands:
             self.log.debug(f" - {command}")
-            pkg = importlib.import_module('src.commands.'+command)
-            command_data = pkg.setup()
+            command_package = importlib.import_module('src.commands.'+command)
+            command_config = command_package.config()
+            self.commands[command] = command_config
 
-            # adding command to the menu entries
-            self.menu_entries[command] = command_data['menu_entry_label']
-            self.help_entries[command] = command_data['keys']
+    def set_curses_defaults(self):
+        '''
+        Sets the defaults for curses
 
-    def draw(self):
-        
-        # clear and refresh for a blank canvas
-        self.window.clear()
-        self.window.refresh()
-
-        # set basic curses settings
+        Returns:
+            void
+        '''
         curses.curs_set(0) # hide the cursor
 
-        # start the colors
+    def init_curses_colors(self):
+        '''
+        Initializes the color scheme
+
+        Returns:
+            void
+        '''
+
+        # start the color system
         curses.start_color()
-        curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-        curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
-        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
-        curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_YELLOW)
-        curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)
-        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_CYAN)
 
-        # set basic color sheme
+        # black on white
+        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
+
+        # black on yellow
+        curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        # yellow on black
+        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+
+        # black on red
+        curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)
+        # red on black
+        curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_RED)
+
+        # black on cyan
+        curses.init_pair(6, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        # cyan on black
+        curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_CYAN)
+
+        # define colors
         self.colors['default'] = curses.color_pair(0)
-        self.colors['menu_active'] = curses.color_pair(3)
-        self.colors['pad_border_active'] = curses.color_pair(1)
-        self.colors['pad_border_inactive'] = curses.color_pair(0)
-        self.colors['statusbar'] = curses.color_pair(3)
-        self.colors['plugin_entry_default'] = curses.color_pair(0)
-        self.colors['plugin_entry_hover'] = curses.color_pair(3)
-        self.colors['plugin_entry_update_available'] = curses.color_pair(1)
-        self.colors['plugin_entry_update_available_inverse'] = curses.color_pair(4)
-        self.colors['messagebox'] = curses.color_pair(5)
-        self.colors['qboxhover'] = curses.color_pair(6)
+        self.colors['default_inverted'] = curses.color_pair(1)
 
-        # get current terminal dimensions
-        self.screen_rows, self.screen_cols = self.window.getmaxyx()
-        self.pad_height = self.screen_rows - 2
-        self.content_pad_width = self.screen_cols - 25
-        self.content_pad_inside_height = self.screen_rows - 4
-        
-        self.log.debug("Terminal resolution:")
-        self.log.debug(f"    rows: {self.screen_rows}")
-        self.log.debug(f"    cols: {self.screen_cols}")
-        self.log.debug(f"    pad_height: {self.pad_height}")
-        self.log.debug(f"    content_pad_width: {self.content_pad_width}")
-        self.log.debug(f"    content_pad_inside_height: {self.content_pad_inside_height}")
-        self.log.debug("Starting lazywp loop")
+    def run(self):
+        '''
+        Gathers all data from the commands and display them
+
+        Returns:
+            void
+        '''
 
         while True:
-            # clear
-            self.window.clear()
-
-            # clear statusbar
-            self.statusbar_entries = []
-            self.statusbar_entries.append('?: help')
-            self.statusbar_entries.append('q: quit')
-
-            # detect context
-            if self.key == 9:
-                self.log.debug("keypress [tab] has been detected")
-                if self.context == 1:
-                    self.context = 2
-                else:
-                    self.context = 1
-                self.log.debug(f" - context: {self.context}")
-
-            # detect quit
-            if self.key == 113:
-                self.log.debug("keypress [q] has been detected")
-                self.exit()
-
-            # detect menu movement to display the hover
-            if self.context == 1:
-                if self.key == curses.KEY_DOWN:
-                    if self.menu_hover < len(self.menu_entries) - 1:
-                        self.menu_hover += 1
-                elif self.key == curses.KEY_UP:
-                    if self.menu_hover > 0:
-                        self.menu_hover -= 1
-
-                # detect enter on the menu and load the new context
-                if self.key == 10:
-                    menu_values = list(self.menu_entries.values())
-                    self.menu_active = menu_values[self.menu_hover]
-                    self.menu_active_command = self.menu_active.lower()
-                    self.context = 2
-                    self.cursor_position = 0
-                    self.content_pad_inside_pos = 0
-                    
-                    self.log.debug("keypress [enter] has been detected")
-                    self.log.debug(f" - context: {self.context}")
-                    self.log.debug(f" - menu_active: {self.menu_active}")
-                    self.log.debug(f" - menu_active_command: {self.menu_active_command}")
-
-            # draw menu pad
-            self.menu_pad = pads.draw_menu_pad(self.context, self.pad_height, self.colors, self.window)
-            self.menu_entries_pad = pads.draw_menu_entries(self.menu_entries, self.menu_hover, self.pad_height, self.colors, self.window)
-
-            # draw content pad
-            self.content_pad = pads.draw_content_pad(self.pad_height, self.content_pad_width, self.context, self.menu_active, self.colors, self.window)
-            self.draw_content_pad_inside()
-
-            # Render status bar
-            pads.draw_status_bar(self.statusbar_entries, self.screen_rows, self.screen_cols, self.colors, self.window)
-
-            # msg line
-            self.window.attron(self.colors['default'])
-            self.window.addstr(self.screen_rows-1, 0, f"{self.msgline}")
-            self.window.attroff(self.colors['default'])
-
-            # debug
-            self.msgline = f"key: {self.key}"
-
-            # Refresh the screen
-            curses.doupdate()
-
-            # Wait for next input
+            # get the pressed key
             self.key = self.window.getch()
-    
-    def draw_content_pad_inside(self):
-        # TODO move this to src.pads and make it modular
 
-        self.content_pad_inside = curses.newpad(300,self.content_pad_width-2)
+            # get the keymap for the currently active command
+            self.init_command_key_bindings()
 
-        # load the current command and draw their content
-        # make sure that every command sets self.content_pad_inside_lines
-        if self.menu_active_command == 'dashboard':
-            self.log.debug("Drawing dashboard")
-            self.content_pad_inside_lines = dashboard.draw(self.content_pad_inside, self.version)
-        else:
-            self.log.debug(f"Loading command module: {self.menu_active_command}")
-            # only run the module if we are on context 2
-            # because we would run into performance issues
-            if self.context == 2:
+            # check if the keypress is a default key
+            if self.key in self.default_keys:
+                call = getattr(self, self.default_keys[self.key])
+                call()
 
-                # enable table cursor if needed by the module
-                if self.key == curses.KEY_DOWN:
-                    if self.cursor_position < self.content_entries-1:
-                        self.cursor_position += 1
-                elif self.key == curses.KEY_UP:
-                    if self.cursor_position > 0:
-                        self.cursor_position -= 1
+            # check if one of the registered keys has been pressed
+            self.log.debug(self.key)
+            self.log.debug(self.keys)
+            self.log.debug(self.default_keys)
 
-                # load command module
-                command_module_spec = importlib.util.spec_from_file_location("lazywp."+self.menu_active_command, self.lazywp_path+'/src/commands/'+self.menu_active_command+'.py')
-                command_module = importlib.util.module_from_spec(command_module_spec)
-                sys.modules["lazywp."+self.menu_active_command] = command_module
-                command_module_spec.loader.exec_module(command_module)
-                command_data = command_module.setup()
-                self.statusbar_entries = self.statusbar_entries + command_data['statusbar']
-                self = command_module.run(self)
+    def init_command_key_bindings(self):
+        '''
+        Inits the key bindings for the currently active command
 
-        # enable pad scrolling
-        hidden_lines = self.content_pad_inside_lines - self.content_pad_inside_height
-        if self.context == 2:
-            if self.key == curses.KEY_DOWN:
-                if self.content_pad_inside_pos < hidden_lines:
-                    self.content_pad_inside_pos += 1
-            elif self.key == curses.KEY_UP:
-                if self.content_pad_inside_pos > 0:
-                    self.content_pad_inside_pos -= 1
+        Returns:
+            void
+        '''
+        command_data = self.commands[self.active_command]
+        if command_data['actions']:
+            for actions in command_data['actions']:
+                self.keys[actions[0]] = actions[1]
 
-        self.content_pad_inside.refresh(self.content_pad_inside_pos, 0, 1, 26, self.screen_rows-4, self.screen_cols-2)
+    def display_help(self):
+        self.log.debug('help')
 
-    def wp(self, command, cache=True):
+    def quit(self):
+        '''
+        Method to quit the system
 
-        # check if we have this in the cache already
-        if command == self.wp_call and cache == True:
-            self.log.debug(f'Command {self.wp_call} called from cache')
-            return
-
-        call = subprocess.run("wp " + command, capture_output=True, shell=True)
-        if call.returncode == 0:
-            output = call.stdout
-        else:
-            output = call.stderr
-
-        self.wp_call = command
-        self.wp_output = output.decode("utf-8")
-        self.wp_returncode = call.returncode
-
-        self.msgline += f' | {self.wp_call}'
-
-        self.log.debug(f'Command {self.wp_call} called')
-        self.log.debug(f' - returncode: {self.wp_returncode}')
-        self.log.debug(f' - output: {self.wp_output}')
-
-    def msgbox(self, messages=[]):
-        self.tui.msgbox(self, messages)
-
-    def askbox(self, messages=[]):
-        return self.tui.askbox(self, messages)
-
-    def help():
-        print('usage: lazywp [--help] [--log_level <level>] [--verbose]')
-
-    def exit(self):
+        Returns:
+            void
+        '''
         sys.exit()
 
 def lazywp(window):
+    '''
+    Starts lazywp by initializing the instance    
+
+    Parameters:
+        window (obj): the curses wrapper window object
+
+    Returns:
+        void
+    '''
     lazywp = LAZYWP(window)
-    lazywp.draw()
+    lazywp.run()
 
 def run():
-    # check if we have an active WordPress in the current path
-    # if not, lazywp does not start
-    check_is_wpcli()
-    check_is_wordpress()
+    '''
+    Kicks off lazywp by first checking if the system operates
+    in the correct environment. It does by checking that
+    wpcli is installed (currently as 'wp') and then if the
+    active directory is actually a WordPress installation.
+
+    Returns:
+        void
+    '''
+
+    # check if wpcli is installed. If not we stop the system
+    # and display an error message for the user
+    wpcli_installed = check_is_wpcli()
+    if wpcli_installed == False:
+        print('\033[91mError:\033[0m Could not detect wpcli.')
+        print('Head to https://wp-cli.org/ and install wpcli.')
+        sys.exit()
+
+    # check 
+    is_wordpress = check_is_wordpress()
+    if is_wordpress == False:
+        print('\033[91mError:\033[0m Could not detect WordPress.')
+        print('Head to a directory with a WordPress installation in it.')
+        sys.exit()
 
     # start the system
     curses.wrapper(lazywp)
 
-def check_is_wpcli():
-    ''' Checks if wpcli is installed as `wp` '''
+def check_is_wpcli() -> bool:
+    '''
+    Checks if wpcli is installed as `wp`.
+
+    Returns
+        bool: true if wpcli is installed, false if not
+    '''
     if which('wp') is not None:
         return True
-    else:
-        print('\033[91mError:\033[0m Could not detect wpcli.')
-        print('Head to https://wp-cli.org/ and install wpcli')
-        sys.exit()
+    return False
 
-def check_is_wordpress():
-    ''' Checks if there is WordPress installed on the current path '''
+def check_is_wordpress() -> bool:
+    '''
+    Checks if there is WordPress installed on the current active
+    directory.
+
+    Returns:
+        bool: true if WordPress is present, false if not
+    '''
     
     call = subprocess.run(["wp", "core", "is-installed"], capture_output=True)
     if call.returncode != 0:
-        output = call.stderr
-        output = output.decode("utf-8")
-        print(output)
-        sys.exit()
-    else:
-        return True
+        return False
+    return True
 
 if __name__ == "__main__":
-    ''' start lazywp by spawning an instance and firing the run method '''
+    ''' start lazywp by firing the run method '''
     try:
         run()
     except KeyboardInterrupt:
