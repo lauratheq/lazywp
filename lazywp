@@ -2,6 +2,8 @@
 
 # import own libs
 import src.config as config
+import src.tui as tui
+import src.dashboard as dashboard
 from src.logging import Logging
 
 # import python3 standard libraries
@@ -10,42 +12,103 @@ from shutil import which
 
 class LAZYWP:
     '''
+    Main LAZYWP class
 
     Attributes:
        window (obj): the curses wrapper window object
+       version (str): the current lazywp version
        lazywp_path (str): the path of the lazywp script
-       log_level (str): the log level, loaded from the config
        log (obj): the logging system
+       log_level (str): the log level, loaded from the config
        commands (dict): the registered commands with their information
+       commands_modules (dict): the imported commands as callable modules
        active_command (str): the currently active command
+       command_holder (dict): holds data which is exchanged between several modules
        colors (dict): the registered colors
        key (int): the currently pressed key
        keys (dict): the keymap
        default_keys (dict): default keymaps
        context (int): the current context (1=menu, 2=content)
+       cols (int): width of the current screen
+       rows (int): height of the current screen
+       menu (list): list of menu entries
+       menu_hover (int): the current entry
+       menu_pad (obj): the curses pad for the menu area
+       content (list): list of content rows
+       content_pad (obj): the curses pad for the content area
+       content_pad_pos (int): the current position of the cursor (basically)
+       reload_content (bool): flag to reload the basic content
+       cursor_position (int): current cursor position in a table
+       has_header (bool): flag if a content area has a table header
+       wp_call (str): the command which is sent to wpcli
+       wp_returncode (str): the returncode from wpcli
+       wp_output (str): the output
+       box (obj): curses object for message boxes
+       tui (obj): the tui module
 
     Methods:
-        register_default_commands(): registers the default commands
-        init_default_key_bindings(): inits the default keys of lazywp
-        register_commands(): loads the information from the commands
-        set_curses_defaults(): sets the default curses settings
-        init_curses_colors(): inits the color scheme
+       register_default_commands(): registers the default commands
+       register_commands(): registers the module commands
+       set_curses_defaults(): sets the curses default settings
+       init_colors(): initializes the color scheme
+       run(): the main run method
+       init_default_key_bindings(): loads the default key bindings
+       init_command_key_bindings(): loads the command key bindings
+       init_menu_entries(): initializes the menu entries
+       draw_menu(): draws the menu
+       draw_content(): draws the content
+       msgbox(): forward to tui.msgbox()
+       askbox(): forward to tui.askbox()
+       slinputbox(): forward to tui.slinputbox()
+       init_navigation_keys(): initialized the basic navitation keys
+       reset_window(): resets the curses window
+       draw_status_bar(): draws the status line
+       wp(): calls wpcli
+       display_help(): forward to tui.draw_help_window()
+       quit(): quits the programm
     '''
     window = None
-    version = '0.1.1'
+    version = '0.1.2'
     lazywp_path = None
     log = None
     log_level = 'NOTSET'
+
     commands = {}
-    active_command = 'plugins'
+    commands_modules = {}
+    active_command = 'dashboard'
+    command_holder = {}
     colors = {}
+
     key = 0
     keys = {}
     default_keys = {}
     context = 1
 
+    cols = 0
+    rows = 0
+
+    menu = []
+    menu_hover = 0
+    menu_pad = None
+    content = []
+    content_pad = None
+    content_pad_pos = 0
+    reload_content = False
+    cursor_position = 0
+    has_header = False
+
+    tui = None
+
+    wp_call = None
+    wp_returncode = None
+    wp_output = None
+
+    box = None
+
     def __init__(self, window):
         '''
+        Initializes the lazywp environment and inits the settings
+        for curses
 
         Parameters:
             window (obj): the curses wrapper window object
@@ -56,6 +119,9 @@ class LAZYWP:
 
         # set the window object
         self.window = window
+
+        # set the tui object
+        self.tui = tui
 
         # set local path
         self.lazywp_path = os.path.dirname(os.path.realpath(__file__))
@@ -69,9 +135,6 @@ class LAZYWP:
         # register the default commands
         self.register_default_commands()
 
-        # init default key bindings
-        self.init_default_key_bindings()
-
         # register the commands
         self.register_commands()
 
@@ -79,7 +142,7 @@ class LAZYWP:
         self.set_curses_defaults()
 
         # set curses colors
-        self.init_curses_colors()
+        self.init_colors()
 
     def register_default_commands(self):
         '''
@@ -90,19 +153,10 @@ class LAZYWP:
         '''
         self.commands['dashboard'] = {
             'label': 'Dashboard',
+            'menu': 'Dashboard',
             'actions': [],
             'statusbar': []
         }
-
-    def init_default_key_bindings(self):
-        '''
-        Initializes the default keys and sets up the dict
-
-        Returns:
-            void
-        '''
-        self.default_keys[ord('q')] = 'quit'
-        self.default_keys[ord('?')] = 'display_help'
 
     def register_commands(self):
         '''
@@ -118,6 +172,7 @@ class LAZYWP:
         for command in commands:
             self.log.debug(f" - {command}")
             command_package = importlib.import_module('src.commands.'+command)
+            self.commands_modules[command] = command_package
             command_config = command_package.config()
             self.commands[command] = command_config
 
@@ -130,19 +185,11 @@ class LAZYWP:
         '''
         curses.curs_set(0) # hide the cursor
 
-    def init_curses_colors(self):
-        '''
-        Initializes the color scheme
-
-        Returns:
-            void
-        '''
-
         # start the color system
         curses.start_color()
 
         # black on white
-        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
         # black on yellow
         curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
@@ -159,9 +206,36 @@ class LAZYWP:
         # cyan on black
         curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_CYAN)
 
-        # define colors
+        # set escape delay
+        curses.set_escdelay(25)
+
+    def init_colors(self):
+        '''
+        Initializes the color scheme
+
+        Returns:
+            void
+        '''
         self.colors['default'] = curses.color_pair(0)
         self.colors['default_inverted'] = curses.color_pair(1)
+        self.colors['context_active'] = curses.color_pair(2)
+        self.colors['menu_hover'] = curses.color_pair(1)
+        self.colors['menu_active'] = curses.color_pair(2)
+        self.colors['menu_active_hover'] = curses.color_pair(3)
+
+        self.colors['entry_default'] = curses.color_pair(0)
+        self.colors['entry_hover'] = curses.color_pair(1)
+        self.colors['entry_active'] = curses.color_pair(2)
+        self.colors['entry_active_hover'] = curses.color_pair(3)
+
+        self.colors['messagebox'] = curses.color_pair(6)
+        self.colors['messagebox_hover'] = curses.color_pair(7)
+
+        self.colors['askbox'] = curses.color_pair(5)
+        self.colors['askbox_hover'] = curses.color_pair(4)
+
+        self.colors['inputbox'] = curses.color_pair(2)
+
 
     def run(self):
         '''
@@ -170,10 +244,50 @@ class LAZYWP:
         Returns:
             void
         '''
+        # clear the terminal
+        self.window.clear()
+
+        # init get the current dimensions
+        self.rows, self.cols = self.window.getmaxyx()
+
+        # get the initial content from the current module
+        if self.active_command != 'dashboard':
+            current_module = self.commands_modules[self.active_command]
+            self.content = current_module.get_content(self)
+        elif self.active_command == 'dashboard':
+            self.content = dashboard.get_content(self)
+
+        # init default key bindings
+        self.init_default_key_bindings()
+
+        # setup the menu
+        self.init_menu_entries()
+
+        #####
+        # MAYBE: Make space here for plugin system hook
+        #####
+
+        # draw initial debug line
+        self.draw_status_bar()
+
+        # draw initial windows and pads
+        self.draw_menu()
+        self.draw_content()
 
         while True:
+            
+            # check if the window is resized
+            resize = curses.is_term_resized(self.rows, self.cols)
+            if resize is True:
+                rows, cols = self.window.getmaxyx()
+                if rows != self.rows or cols != self.cols:
+                    self.reset_window()
+
             # get the pressed key
             self.key = self.window.getch()
+
+            # fetch the basic keys for navigating lazywp
+            self.init_navigation_keys()
 
             # get the keymap for the currently active command
             self.init_command_key_bindings()
@@ -183,10 +297,40 @@ class LAZYWP:
                 call = getattr(self, self.default_keys[self.key])
                 call()
 
-            # check if one of the registered keys has been pressed
-            self.log.debug(self.key)
-            self.log.debug(self.keys)
-            self.log.debug(self.default_keys)
+            # check if the keypress is a command key
+            if self.key in self.keys:
+                current_module = self.commands_modules[self.active_command]
+                call = getattr(current_module, self.keys[self.key])
+                call(self, self.command_holder)
+
+            # reload content if needed
+            if self.reload_content == True:
+                if self.active_command != 'dashboard':
+                    current_module = self.commands_modules[self.active_command]
+                    self.content = current_module.get_content(self)
+                elif self.active_command == 'dashboard':
+                    self.content = dashboard.get_content(self)
+
+            # draw windows and pads
+            self.draw_menu()
+            self.draw_content()
+            self.draw_status_bar()
+
+            # always draw the debug line at the end
+            curses.doupdate()
+
+            # reset content reload flag
+            self.reload_content = False
+
+    def init_default_key_bindings(self):
+        '''
+        Initializes the default keys and sets up the dict
+
+        Returns:
+            void
+        '''
+        self.default_keys[ord('q')] = 'quit'
+        self.default_keys[ord('?')] = 'display_help'
 
     def init_command_key_bindings(self):
         '''
@@ -198,10 +342,220 @@ class LAZYWP:
         command_data = self.commands[self.active_command]
         if command_data['actions']:
             for actions in command_data['actions']:
-                self.keys[actions[0]] = actions[1]
+                self.keys[ord(actions[0])] = actions[1]
+
+    def init_menu_entries(self):
+        '''
+        Initializes the menu entries by iterating through
+        each registered command and adding it to the stack
+        if the menu option is set
+
+        Returns:
+            void
+        '''
+        for command in self.commands:
+            self.menu.append(self.commands[command]['menu'])
+
+    def draw_menu(self):
+        '''
+        Draws the menu window and adds the pad. This also adds
+        the menu entries.
+
+        Returns:
+            void
+        '''
+        self.tui.draw_menu_window(self)
+        self.menu_pad = self.tui.draw_menu_pad(self)
+
+    def draw_content(self):
+        '''
+        Draws the content window and adds the pad. This also adds
+        the content lines.
+
+        Returns:
+            void
+        '''
+        self.tui.draw_content_window(self)
+        self.content_pad = self.tui.draw_content_pad(self)
+
+    def msgbox(self, messages=[]) -> None:
+        '''
+        Calls the message box tui
+
+        Parameters:
+            messages (list): list of messages
+
+        Returns:
+            void
+        '''
+        self.tui.msgbox(self, messages)
+
+    def askbox(self, messages=[]) -> bool:
+        '''
+        Calls the ask box tui
+
+        Parameters:
+            messages (list): list of messages
+
+        Returns:
+            bool
+        '''
+        return self.tui.askbox(self, messages)
+
+    def slinputbox(self, messages=[]):
+        '''
+        Calls the single line input box tui
+
+        Parameters:
+            messages (list): list of messages
+
+        Returns:
+            bool
+        '''
+        return self.tui.slinputbox(self, messages)
+
+    def init_navigation_keys(self):
+        '''
+        Initializes the basic keys for the navigation of lazywp
+        like tab and scolling with arrow keys
+
+        Returns:
+            void
+        '''
+        # detect context switch
+        if self.key == 9:
+            self.log.debug("keypress [tab] has been detected")
+            if self.context == 1:
+                self.context = 2
+            else:
+                self.context = 1
+
+        # detect menu movement
+        if self.context == 1:
+            if self.key == curses.KEY_DOWN:
+                if self.menu_hover < len(self.menu) - 1:
+                    self.menu_hover += 1
+            elif self.key == curses.KEY_UP:
+                if self.menu_hover > 0:
+                    self.menu_hover -= 1
+
+            # detect menu switch [10 = enter]
+            if self.key == 10:
+                self.active_command = self.menu[self.menu_hover].lower()
+                self.context = 2
+                self.reload_content = True
+
+        # detect scrolling
+        hidden_lines = len(self.content) - self.rows - 4
+        if self.context == 2:
+            if self.key == curses.KEY_DOWN:
+                # scrolling position
+                if self.content_pad_pos < hidden_lines:
+                    self.content_pad_pos += 1
+
+                # table cursor position
+                content_length = len(self.content)
+                if self.has_header == True:
+                    content_length -= 2
+                if self.cursor_position < content_length-1:
+                    self.cursor_position += 1
+                    self.reload_content = True
+            elif self.key == curses.KEY_UP:
+                # scrolling position
+                if self.content_pad_pos > 0:
+                    self.content_pad_pos -= 1
+
+                # table cursor position
+                if self.cursor_position > 0:
+                    self.cursor_position -= 1
+                    self.reload_content = True
+
+    def reset_window(self):
+        '''
+        Resets the window
+        
+        sometimes the cols and rows differ from what's actually there
+        so we need to reset the window
+
+        Returns:
+            void
+        '''
+        rows, cols = self.window.getmaxyx()
+        if rows != self.rows or cols != self.cols:
+            curses.resizeterm(rows, cols)
+            self.cols = cols
+            self.rows = rows
+            self.window.clear()
+
+    def draw_status_bar(self):
+        '''
+        Draws the white status bar at the bottom and concats
+        all the needed information for the user
+
+        Returns:
+            void
+        '''
+        # set the basic information
+        base_elements = [
+            'q: quit',
+            '?: help'
+        ]
+
+        # get the information from the command
+        command_elements = []
+        if self.commands[self.active_command]['statusbar']:
+            command_elements = self.commands[self.active_command]['statusbar']
+        elements = base_elements + command_elements
+        
+        # build the string
+        string = " | ".join(elements)
+        string = f" {string}"
+        missing_chars = " " * (self.cols - len(string))
+        string = f"{string}{missing_chars}"
+
+        # display the bar
+        self.window.addstr(self.rows-2, 0, f"{string}", self.colors['default_inverted'])
+
+    def wp(self, command, cache=True) -> None:
+        '''
+        Calls wpcli with the given command
+
+        Parameters:
+            command (str): the command which should be executed
+            cache (bool): enforce local cache
+
+        Returns:
+            void
+        '''
+
+        # check if we have this in the cache already
+        if command == self.wp_call and cache == True:
+            self.log.debug(f'Command {self.wp_call} called from cache')
+            return
+
+        call = subprocess.run("wp " + command, capture_output=True, shell=True)
+        if call.returncode == 0:
+            output = call.stdout
+        else:
+            output = call.stderr
+
+        self.wp_call = command
+        self.wp_output = output.decode("utf-8")
+        self.wp_returncode = call.returncode
+
+        self.log.debug(f'Command {self.wp_call} called')
+        self.log.debug(f' - returncode: {self.wp_returncode}')
+        self.log.debug(f' - output: {self.wp_output}')
+
 
     def display_help(self):
-        self.log.debug('help')
+        '''
+        Displays the help modal
+
+        Returns:
+            void
+        '''
+        self.tui.draw_help_window(self)
 
     def quit(self):
         '''

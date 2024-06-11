@@ -1,11 +1,13 @@
 #!/usr/bin/python3
 
+import json
+
 def config():
     return {
         'label': 'Plugins',
+        'menu': 'Plugins',
         'actions': [
-            ['a', 'activate_plugin', 'Activate plugin'],
-            ['d', 'deactivate_plugin', 'Deactivate plugin'],
+            ['a', 'toggle_activation', 'Toggle activation of a plugin'],
             ['i', 'install_plugin', 'Install new plugin'],
             ['r', 'deinstall_plugin', 'Deinstalls and removes a plugin'],
             ['u', 'update_plugin', 'Update plugin'],
@@ -14,111 +16,176 @@ def config():
             ['v', 'verify_plugin', 'Verify plugin agains wp.org']
         ],
         'statusbar': [
-            'a: activate',
-            'd: deactivate',
+            'a: de/active',
             'i: install',
             'r: remove',
-            'u: update'
+            'u: update (U: all)',
         ]
     }
 
-def data(lazywp):
-    pass
+def get_content(lazywp) -> list:
+    '''
+    Builds the basic content for the plugins view
 
-def run(lazywp):
-    
-    # we always display a list of plugins so we first query them
-    # by calling wp cli
-    # get the plugins
+    Parameters:
+        lazywp (obj): the lazywp object
+
+    returns:
+        list: the content to be drawn
+    '''
+    # set defaults
+    content = []
     lazywp.wp("plugin list --format=json")
     plugins = lazywp.wp_output
     plugins = json.loads(plugins)
 
-    if lazywp.key in (85, 97, 100, 114, 117):
-        plugin = plugins[lazywp.cursor_position]
-        reload = False
+    # check if plugins exists
+    if len(plugins) == 0:
+        return [['No plugins found.']]
 
-        # activate
-        if lazywp.key == 97 and plugin['status'] == 'inactive':
-            lazywp.msgbox([f"Activating plugin {plugin['name']}"])
-            lazywp.wp(f"plugin activate {plugin['name']}", False)
-            reload = True
-
-        # deactivate
-        if lazywp.key == 100 and plugin['status'] == 'active':
-            lazywp.msgbox([f"Deactivating plugin {plugin['name']}"])
-            lazywp.wp(f"plugin deactivate {plugin['name']}", False)
-            reload = True
-
-        # remove
-        if lazywp.key == 114:
-            result = lazywp.askbox([f"Are you sure you want to delete {plugin['name']}?"])
-            if result == True:
-                lazywp.msgbox([f"Deleting plugin {plugin['name']}"])
-                lazywp.wp(f"plugin delete {plugin['name']}", False)
-                reload = True
-
-        # update
-        if lazywp.key == 117 and plugin['update'] == 'available':
-            lazywp.msgbox([f"Updating plugin {plugin['name']}"])
-            lazywp.wp(f"plugin update {plugin['name']}", False)
-            reload = True
-
-        # update all
-        if lazywp.key == 85:
-            lazywp.msgbox(['Updating all plugins'])
-            lazywp.wp(f"plugin update --all", False)
-            reload = True
-
-        # reload the plugin list because the items changed
-        if reload == True:
-            lazywp.msgbox(['Loading plugin list'])
-            lazywp.wp("plugin list --format=json", False)
-
-    # always clear the content first
-    lazywp.content_pad_inside.clear()
-
-    # build the table
-    lazywp.tui.draw_table_header({
+    # build the table header
+    lazywp.has_header = True
+    headers = lazywp.tui.draw_table_header({
         'Name': 0,
         'Status': 8,
         'Version': 10,
         'Update Available': 17,
         'AU': 3
-    }, lazywp.content_pad_inside, lazywp.content_pad_width)
-    used_lines = 2
+    }, lazywp)
+    content += headers
 
-    # format
-    plugins = lazywp.wp_output
-    plugins = json.loads(plugins)
+    # set local holder
+    active_plugin = plugins[lazywp.cursor_position]
+    lazywp.command_holder['active_plugin'] = active_plugin
 
+    # walk the plugins
     plugin_counter = 0
-    position = 2
     for plugin in plugins:
-        
-        color = lazywp.colors['plugin_entry_default']
+        color = 'entry_default'
         if lazywp.cursor_position == plugin_counter:
-            color = lazywp.colors['plugin_entry_hover']
+            color = 'entry_hover'
 
         if plugin['update'] == 'available':
-            color = lazywp.colors['plugin_entry_update_available']
+            color = 'entry_active'
             if lazywp.cursor_position == plugin_counter:
-                color = lazywp.colors['plugin_entry_update_available_inverse']
+                color = 'entry_active_hover'
 
-        lazywp.tui.draw_table_entry({
+        line = lazywp.tui.draw_table_entry({
             plugin['name']: 0,
             plugin['status']: 8,
             plugin['version']: 10,
             plugin['update']: 17,
             plugin['auto_update']: 3
-        }, position, color, lazywp.content_pad_inside, lazywp.content_pad_width, lazywp)
-
-        position += 1
-        used_lines += 1
+        }, color, lazywp)
+        content.append([line, color])
         plugin_counter += 1
 
-    # set the needed lines in order to make this pad scrollable
-    lazywp.content_entries = plugin_counter
-    lazywp.content_pad_inside_lines = used_lines
+    return content
 
-    return lazywp
+def toggle_activation(lazywp, data):
+    '''
+    Toggles the activation of a plugin
+
+    Parameters:
+        lazywp (obj): the lazywp object
+        data (dict): the transfer data dict
+
+    Returns:
+        void
+    '''
+    lazywp.reload_content = True
+    if data['active_plugin']['status'] == 'inactive':
+        lazywp.msgbox([f"Activating plugin {data['active_plugin']['name']}"])
+        lazywp.wp(f"plugin activate {data['active_plugin']['name']}", False)
+    elif data['active_plugin']['status'] == 'active':
+        lazywp.msgbox([f"Deactivating plugin {data['active_plugin']['name']}"])
+        lazywp.wp(f"plugin deactivate {data['active_plugin']['name']}", False)
+
+def install_plugin(lazywp, data):
+    '''
+    Asks a user for a plugin which needs to be installed
+
+    Parameters:
+        lazywp (obj): the lazywp object
+        data (dict): the transfer data dict
+
+    Returns:
+        void
+    '''
+    plugin = lazywp.slinputbox([f"Please enter the slug of the plugin you want to install"])
+    lazywp.msgbox([f"Downloading plugin {plugin}"])
+    lazywp.wp(f"plugin install {plugin}", False)
+    lazywp.reload_content = True
+ 
+
+def deinstall_plugin(lazywp, data):
+    '''
+    Deinstalls a plugin
+
+    Parameters:
+        lazywp (obj): the lazywp object
+        data (dict): the transfer data dict
+
+    Returns:
+        void
+    '''
+
+    result = lazywp.askbox([f"Are you sure you want to delete {data['active_plugin']['name']}?"])
+    if result == True:
+        lazywp.reload_content = True
+        lazywp.cursor_position = 0
+        lazywp.msgbox([f"Deleting plugin {data['active_plugin']['name']}"])
+        lazywp.wp(f"plugin delete {data['active_plugin']['name']}", False)
+
+def update_plugin(lazywp, data):
+    '''
+    Updates a plugin
+
+    Parameters:
+        lazywp (obj): the lazywp object
+        data (dict): the transfer data dict
+
+    Returns:
+        void
+    '''
+    lazywp.reload_content = True
+    lazywp.msgbox([f"Updating plugin {data['active_plugin']['name']}"])
+    lazywp.wp(f"plugin update {data['active_plugin']['name']}", False)
+
+def update_all_plugins(lazywp, data):
+    '''
+    Updates all plugins
+
+    Parameters:
+        lazywp (obj): the lazywp object
+        data (dict): the transfer data dict
+
+    Returns:
+        void
+    '''
+    lazywp.reload_content = True
+    lazywp.msgbox([f"Updating all plugins"])
+    lazywp.wp(f"plugin update --all", False)
+
+def toggle_autoupdate(lazywp, data):
+    '''
+    Toggles the autoupdate of a plugin
+
+    Parameters:
+        lazywp (obj): the lazywp object
+        data (dict): the transfer data dict
+
+    Returns:
+        void
+    '''
+    lazywp.reload_content = True
+    if data['active_plugin']['auto_update'] == 'off':
+        lazywp.msgbox([f"Activating autoupdate for plugin {data['active_plugin']['name']}"])
+        lazywp.wp(f"plugin auto-updates enable {data['active_plugin']['name']}", False)
+    elif data['active_plugin']['auto_update'] == 'on':
+        lazywp.msgbox([f"Deactivating autoupdate for plugin {data['active_plugin']['name']}"])
+        lazywp.wp(f"plugin auto-updates disable {data['active_plugin']['name']}", False)
+
+
+def verify_plugin(lazywp, data):
+    lazywp.log.debug('verify_plugin')

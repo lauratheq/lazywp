@@ -16,6 +16,15 @@ class Logging:
     }
 
     def __init__(self, **kwargs):
+        '''
+        Initializes the class and sets all needed variables
+
+        Parameters:
+            kwargs['log_level'] (str): the setted log level
+
+        Returns:
+            void
+        '''
         if 'log_level' in kwargs:
             self.log_level = kwargs['log_level']
     

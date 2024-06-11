@@ -36,7 +36,7 @@ Please note that this project is adapting the [Contributor Code of Conduct](http
 #### MVP
 
 **Basic Features**
-* [ ] Display help which aggregates the infos from the commands
+* [x] Display help which aggregates the infos from the commands
 * [ ] Version check
 * [x] Logging mechanism
 * [x] Basic Layout
@@ -44,10 +44,10 @@ Please note that this project is adapting the [Contributor Code of Conduct](http
   * [x] Scrolling
   * [x] Dynamic status bar
 * [x] Dynamic loading of commands
-* [ ] Methods to make usage of curses easier within the project
+* [x] Methods to make usage of curses easier within the project
   * [x] Tables
-  * [ ] Modals 
-* [ ] Code comments (i know ...)
+  * [x] Modals 
+* [x] Code comments (i know ...)
 * [ ] functionality documentation in README.md
 * [ ] Automatic installation process
 * [x] wpcli wrapper method for usage within modules
@@ -86,9 +86,9 @@ Determine for each command what exactly to implement
   * [x] update all
   * [x] activate
   * [x] deactivate
-  * [ ] toggle auto update
+  * [x] toggle auto update
   * [ ] verify checksum against wp.org
-  * [ ] install
+  * [x] install
   * [x] remove
 * [ ] post
 * [ ] post-type
@@ -105,6 +105,14 @@ Determine for each command what exactly to implement
 * [ ] taxonomy
 * [ ] term
 * [ ] theme
+  * [x] update
+  * [x] update all
+  * [x] activate
+  * [x] deactivate
+  * [x] toggle auto update
+  * [ ] verify checksum against wp.org
+  * [x] install
+  * [x] remove
 * [ ] transient
 * [ ] user
 * [ ] widget

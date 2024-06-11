@@ -1,7 +1,14 @@
 #!/usr/bin/python3
 
-# TODO comments
-
+'''
+Sets the log level. Possible levels:
+    NOTSET
+    DEBUG
+    INFO
+    WARN
+    ERROR
+    CRITICAL
+'''
 LOG_LEVEL       = 'DEBUG'
 
 

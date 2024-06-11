@@ -1,19 +1,24 @@
 #!/usr/bin/python3
 
-def draw(pad, version):
+def get_content(lazywp) -> list:
 
-    pad.addstr(0, 2, "   __   ___ ______  ___      _____")
-    pad.addstr(1, 2, "  / /  / _ /_  /\\ \\/ / | /| / / _ \\ ")
-    pad.addstr(2, 2, " / /__/ __ |/ /_ \\  /| |/ |/ / ___/")
-    pad.addstr(3, 2, "/____/_/ |_/___/ /_/ |__/|__/_/ ")
+    content = []
+    content.append(["   __   ___ ______  ___      _____"])
+    content.append(["  / /  / _ /_  /\\ \\/ / | /| / / _ \\ "])
+    content.append([" / /__/ __ |/ /_ \\  /| |/ |/ / ___/"])
+    content.append(["/____/_/ |_/___/ /_/ |__/|__/_/ "])
+    content.append([" "])
 
-    pad.addstr(5, 2, "Welcome to lazywp - a tui wrapper for wpcli")
-    pad.addstr(6, 2, f"Version: {version}")
-    pad.addstr(8, 2, "Select menu entry and press [enter]")
-    pad.addstr(9, 2, "Use [tab] to switch between the menu and content")
-    pad.addstr(10, 2, "Press [?] for help")
-    pad.addstr(11, 2, "Press [q] to exit lazywp")
-    pad.addstr(13, 2, "Visit https://github.com/lauratheq/lazywp for more information and contributing")
-    return 20
+    content.append(["Welcome to lazywp - a tui wrapper for wpcli"])
+    content.append([f"Version: {lazywp.version}"])
+    content.append([" "])
+    content.append(["Select menu entry and press [enter]"])
+    content.append(["Use [tab] to switch between the menu and content"])
+    content.append(["Press [?] for help"])
+    content.append(["Press [q] to exit lazywp"])
+    content.append([" "])
 
+    content.append(["Visit https://github.com/lauratheq/lazywp for more information and contributing"])
+
+    return content
 
